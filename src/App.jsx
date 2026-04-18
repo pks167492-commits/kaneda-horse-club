@@ -390,8 +390,7 @@ export default function App() {
             </div>
 
             <div style={styles.help}>
-              기본 관리자 PIN은 <b>1479</b> 입니다. 원하면 <code>src/App.jsx</code>의
-              <code> ADMIN_PIN </code> 값을 바꾸면 됩니다.
+              운영 권한은 인증 후 활성화됩니다.
             </div>
           </section>
 
