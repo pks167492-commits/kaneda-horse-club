@@ -1,495 +1,669 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
-import { motion } from 'framer-motion'
-import {
-  Crown,
-  Eye,
-  History,
-  Play,
-  RotateCcw,
-  Trophy,
-  Users,
-  Wifi,
-  WifiOff,
-  Copy,
-  Download,
-  Upload,
-  Coins,
-} from 'lucide-react'
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createClient } from "@supabase/supabase-js";
 
-const STORAGE_KEY = 'kaneda_horse_club_state_v1'
-const SUPABASE_URL = 'https://mfbpgdoaobafujvxnwmw.supabase.co'
-const SUPABASE_ANON_KEY = 'sb_publishable_pM4M_hF_l-4Yw5_U0DixBw_BUNjnLc7'
+const SUPABASE_URL = "https://mfbpgdoaobafujvxnwmw.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_pM4M_hF_l-4Yw5_U0DixBw_BUNjnLc7";
+const ADMIN_PIN = "1479";
+const STORAGE_KEY = "kaneda_horse_club_v1";
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+const supabase =
+  SUPABASE_URL && SUPABASE_ANON_KEY
+    ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+    : null;
 
-const initialHorses = [
-  { id: 1, name: '흑룡', odds: 2.0 },
-  { id: 2, name: '백야', odds: 3.0 },
-  { id: 3, name: '적월', odds: 4.5 },
-  { id: 4, name: '사신', odds: 6.0 },
-  { id: 5, name: '청풍', odds: 7.5 },
-  { id: 6, name: '황혼', odds: 9.0 },
-]
+const defaultHorses = [
+  { id: 1, name: "흑룡", odds: 2.0 },
+  { id: 2, name: "백야", odds: 3.0 },
+  { id: 3, name: "적월", odds: 4.5 },
+  { id: 4, name: "사신", odds: 6.0 },
+  { id: 5, name: "청풍", odds: 7.5 },
+  { id: 6, name: "황혼", odds: 9.0 },
+];
 
-const toMoney = (n) => `$${Number(n || 0).toLocaleString()}`
+function nowString() {
+  return new Date().toLocaleString("ko-KR");
+}
 
-function weightedWinner(horses) {
-  const weights = horses.map((h) => 1 / Math.max(Number(h.odds || 1), 1.01))
-  const total = weights.reduce((a, b) => a + b, 0)
-  let roll = Math.random() * total
+function pickWinner(horses) {
+  const weights = horses.map((h) => 1 / Math.max(Number(h.odds || 1), 1.01));
+  const total = weights.reduce((a, b) => a + b, 0);
+  let r = Math.random() * total;
   for (let i = 0; i < horses.length; i += 1) {
-    roll -= weights[i]
-    if (roll <= 0) return horses[i]
+    r -= weights[i];
+    if (r <= 0) return horses[i];
   }
-  return horses[horses.length - 1]
+  return horses[horses.length - 1];
 }
 
-function makeDurations(horses, winnerId) {
-  return horses.reduce((acc, horse) => {
-    const base = 6 + Math.random() * 3
-    acc[horse.id] = horse.id === winnerId ? 5.1 + Math.random() * 0.5 : base
-    return acc
-  }, {})
+function currency(n) {
+  return `$${Number(n || 0).toLocaleString()}`;
 }
 
-function makeSharePayload({ horses, raceNo, raceHistory, roomName, roomCode, lastUpdated }) {
-  return JSON.stringify(
-    { version: 1, horses, raceNo, raceHistory, roomName, roomCode, lastUpdated },
-    null,
-    2,
-  )
-}
-
-function App() {
-  const [horses, setHorses] = useState(initialHorses)
-  const [betHorseId, setBetHorseId] = useState(1)
-  const [betAmount, setBetAmount] = useState(5000)
-  const [isRacing, setIsRacing] = useState(false)
-  const [winner, setWinner] = useState(null)
-  const [durations, setDurations] = useState({})
-  const [raceNo, setRaceNo] = useState(1)
-  const [raceHistory, setRaceHistory] = useState([])
-  const [roomName, setRoomName] = useState('KANEDA 메인 룸')
-  const [roomCode, setRoomCode] = useState('main-room')
-  const [role, setRole] = useState('host')
-  const [syncMode, setSyncMode] = useState('realtime')
-  const [notice, setNotice] = useState('실시간 동기화 준비 완료')
-  const [lastUpdated, setLastUpdated] = useState(null)
-  const [connected, setConnected] = useState(false)
-  const [syncing, setSyncing] = useState(false)
-  const [shareData, setShareData] = useState('')
-
-  const timerRef = useRef(null)
-  const channelRef = useRef(null)
-
-  const isHost = role === 'host'
-  const isRealtime = syncMode === 'realtime'
+export default function App() {
+  const [roomCode, setRoomCode] = useState("main-room");
+  const [roomName, setRoomName] = useState("KANEDA 메인 룸");
+  const [horses, setHorses] = useState(defaultHorses);
+  const [raceNo, setRaceNo] = useState(1);
+  const [raceHistory, setRaceHistory] = useState([]);
+  const [betHorseId, setBetHorseId] = useState(1);
+  const [betAmount, setBetAmount] = useState(5000);
+  const [role, setRole] = useState("viewer");
+  const [pinInput, setPinInput] = useState("");
+  const [notice, setNotice] = useState("준비 완료");
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [racing, setRacing] = useState(false);
+  const [winner, setWinner] = useState(null);
+  const [isConnected, setIsConnected] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const channelRef = useRef(null);
+  const raceTimerRef = useRef(null);
 
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return
     try {
-      const saved = JSON.parse(raw)
-      if (saved.horses) setHorses(saved.horses)
-      if (saved.raceNo) setRaceNo(saved.raceNo)
-      if (saved.raceHistory) setRaceHistory(saved.raceHistory)
-      if (saved.roomName) setRoomName(saved.roomName)
-      if (saved.roomCode) setRoomCode(saved.roomCode)
-      if (saved.role) setRole(saved.role)
-      if (saved.syncMode) setSyncMode(saved.syncMode)
-      if (saved.lastUpdated) setLastUpdated(saved.lastUpdated)
-    } catch {
-      setNotice('저장 데이터 로딩에 실패했습니다')
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      const saved = JSON.parse(raw);
+      if (saved.roomCode) setRoomCode(saved.roomCode);
+      if (saved.roomName) setRoomName(saved.roomName);
+      if (saved.horses) setHorses(saved.horses);
+      if (saved.raceNo) setRaceNo(saved.raceNo);
+      if (saved.raceHistory) setRaceHistory(saved.raceHistory);
+      if (saved.role) setRole(saved.role);
+      if (saved.lastUpdated) setLastUpdated(saved.lastUpdated);
+    } catch (error) {
+      console.error(error);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    if (isRacing) return
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ horses, raceNo, raceHistory, roomName, roomCode, role, syncMode, lastUpdated }),
-    )
-  }, [horses, raceNo, raceHistory, roomName, roomCode, role, syncMode, lastUpdated, isRacing])
+      JSON.stringify({
+        roomCode,
+        roomName,
+        horses,
+        raceNo,
+        raceHistory,
+        role,
+        lastUpdated,
+      })
+    );
+  }, [roomCode, roomName, horses, raceNo, raceHistory, role, lastUpdated]);
+
+  const isAdmin = role === "admin";
 
   const selectedHorse = useMemo(
     () => horses.find((h) => h.id === Number(betHorseId)) || horses[0],
-    [horses, betHorseId],
-  )
+    [horses, betHorseId]
+  );
 
-  const expectedPayout = useMemo(
+  const payout = useMemo(
     () => Number(betAmount || 0) * Number(selectedHorse?.odds || 0),
-    [betAmount, selectedHorse],
-  )
+    [betAmount, selectedHorse]
+  );
 
-  const applyRemoteState = (next) => {
-    setRoomName(next.room_name || 'KANEDA 메인 룸')
-    setRaceNo(next.race_no || 1)
-    setHorses(Array.isArray(next.horses) && next.horses.length ? next.horses : initialHorses)
-    setRaceHistory(Array.isArray(next.race_history) ? next.race_history : [])
-    setLastUpdated(next.last_updated || null)
-    setWinner(null)
-    setDurations({})
-    setIsRacing(false)
-  }
+  const applyRemoteState = (row) => {
+    if (!row) return;
+    setRoomCode(row.room_code || "main-room");
+    setRoomName(row.room_name || "KANEDA 메인 룸");
+    setRaceNo(row.race_no || 1);
+    setHorses(Array.isArray(row.horses) && row.horses.length ? row.horses : defaultHorses);
+    setRaceHistory(Array.isArray(row.race_history) ? row.race_history : []);
+    setLastUpdated(row.last_updated || null);
+    setWinner(null);
+    setRacing(false);
+  };
 
-  const pushRoomState = async (override = {}, message = '실시간 룸 상태를 저장했습니다') => {
-    if (!isRealtime || !roomCode.trim()) return
-    setSyncing(true)
-    const payload = {
-      room_code: roomCode.trim(),
-      room_name: override.roomName ?? roomName,
-      race_no: override.raceNo ?? raceNo,
-      horses: override.horses ?? horses,
-      race_history: override.raceHistory ?? raceHistory,
-      last_updated: override.lastUpdated ?? lastUpdated ?? new Date().toLocaleString('ko-KR'),
+  const saveRoomState = async (overrides = {}, customNotice) => {
+    if (!supabase) {
+      setNotice("Supabase 연결이 없습니다");
+      return false;
     }
-    const { error } = await supabase.from('race_rooms').upsert(payload, { onConflict: 'room_code' })
-    setSyncing(false)
-    if (error) {
-      setNotice('실시간 저장에 실패했습니다')
-      return
+    try {
+      setSyncing(true);
+      const payload = {
+        room_code: (overrides.roomCode ?? roomCode).trim(),
+        room_name: overrides.roomName ?? roomName,
+        race_no: overrides.raceNo ?? raceNo,
+        horses: overrides.horses ?? horses,
+        race_history: overrides.raceHistory ?? raceHistory,
+        last_updated: overrides.lastUpdated ?? nowString(),
+      };
+      const { error } = await supabase
+        .from("race_rooms")
+        .upsert(payload, { onConflict: "room_code" });
+      if (error) throw error;
+      setNotice(customNotice || "실시간 저장 완료");
+      setLastUpdated(payload.last_updated);
+      return true;
+    } catch (error) {
+      console.error(error);
+      setNotice(`저장 실패: ${error.message}`);
+      return false;
+    } finally {
+      setSyncing(false);
     }
-    setNotice(message)
-  }
+  };
 
   useEffect(() => {
-    if (!isRealtime || !roomCode.trim()) {
-      setConnected(false)
-      return undefined
+    if (!supabase || !roomCode.trim()) return undefined;
+    let alive = true;
+
+    async function connect() {
+      try {
+        setNotice("룸 연결 중...");
+        const code = roomCode.trim();
+        const { data, error } = await supabase
+          .from("race_rooms")
+          .select("room_code, room_name, race_no, horses, race_history, last_updated")
+          .eq("room_code", code)
+          .maybeSingle();
+
+        if (!alive) return;
+        if (error) throw error;
+
+        if (data) {
+          applyRemoteState(data);
+          setNotice(`룸 ${code} 연결 완료`);
+        } else if (role === "admin") {
+          await saveRoomState(
+            {
+              roomCode: code,
+              roomName,
+              raceNo,
+              horses,
+              raceHistory,
+              lastUpdated: nowString(),
+            },
+            `새 룸 ${code} 생성 완료`
+          );
+        } else {
+          setNotice("아직 룸이 없습니다. 운영자가 먼저 열어주세요.");
+        }
+
+        const channel = supabase
+          .channel(`race-room-${code}`)
+          .on(
+            "postgres_changes",
+            {
+              event: "*",
+              schema: "public",
+              table: "race_rooms",
+              filter: `room_code=eq.${code}`,
+            },
+            (payload) => {
+              if (!payload.new) return;
+              applyRemoteState(payload.new);
+              setNotice(`실시간 갱신됨: ${code}`);
+            }
+          )
+          .subscribe((status) => {
+            if (!alive) return;
+            setIsConnected(status === "SUBSCRIBED");
+          });
+
+        channelRef.current = channel;
+      } catch (error) {
+        console.error(error);
+        setNotice(`연결 실패: ${error.message}`);
+      }
     }
 
-    let alive = true
-
-    const connect = async () => {
-      setNotice('실시간 룸에 연결 중입니다')
-      const { data, error } = await supabase
-        .from('race_rooms')
-        .select('room_code, room_name, race_no, horses, race_history, last_updated')
-        .eq('room_code', roomCode.trim())
-        .maybeSingle()
-
-      if (!alive) return
-      if (error) {
-        setNotice('실시간 룸 조회 실패')
-        return
-      }
-
-      if (data) {
-        applyRemoteState(data)
-        setNotice(`실시간 룸 ${data.room_code}에 연결되었습니다`)
-      } else if (isHost) {
-        await pushRoomState(
-          {
-            roomName,
-            raceNo,
-            horses,
-            raceHistory,
-            lastUpdated: new Date().toLocaleString('ko-KR'),
-          },
-          `새 룸 ${roomCode.trim()} 생성 완료`,
-        )
-      } else {
-        setNotice('운영자가 먼저 룸을 만들어야 합니다')
-      }
-
-      const channel = supabase
-        .channel(`race-room-${roomCode.trim()}`)
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'race_rooms', filter: `room_code=eq.${roomCode.trim()}` },
-          (payload) => {
-            if (!payload.new) return
-            applyRemoteState(payload.new)
-            setNotice(`실시간으로 ${payload.new.room_code} 기록이 갱신되었습니다`)
-          },
-        )
-        .subscribe((status) => setConnected(status === 'SUBSCRIBED'))
-
-      channelRef.current = channel
-    }
-
-    connect()
+    connect();
 
     return () => {
-      alive = false
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current)
-        channelRef.current = null
+      alive = false;
+      if (channelRef.current && supabase) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
       }
+    };
+  }, [roomCode]);
+
+  useEffect(() => () => {
+    if (raceTimerRef.current) {
+      clearTimeout(raceTimerRef.current);
     }
-  }, [roomCode, role, syncMode])
+  }, []);
+
+  const unlockAdmin = () => {
+    if (pinInput === ADMIN_PIN) {
+      setRole("admin");
+      setPinInput("");
+      setNotice("관리자 인증 완료");
+      saveRoomState({}, "관리자 모드로 저장됨");
+    } else {
+      setNotice("PIN이 올바르지 않습니다");
+    }
+  };
+
+  const switchViewer = () => {
+    setRole("viewer");
+    setPinInput("");
+    setNotice("관전자 모드");
+  };
+
+  const changeHorse = (id, key, value) => {
+    if (!isAdmin) return;
+    const next = horses.map((h) =>
+      h.id === id ? { ...h, [key]: key === "odds" ? Number(value || 0) : value } : h
+    );
+    setHorses(next);
+  };
+
+  const commitHorseSettings = async () => {
+    if (!isAdmin) return;
+    await saveRoomState({ horses, lastUpdated: nowString() }, "말 설정 저장 완료");
+  };
 
   const startRace = () => {
-    if (!isHost || isRacing) return
-    const picked = weightedWinner(horses)
-    const nextDurations = makeDurations(horses, picked.id)
-    setWinner(null)
-    setDurations(nextDurations)
-    setIsRacing(true)
-    setNotice('레이스 진행 중입니다')
+    if (!isAdmin || racing) return;
+    const picked = pickWinner(horses);
+    setRacing(true);
+    setWinner(null);
+    setNotice("경기 진행 중...");
 
-    const longest = Math.max(...Object.values(nextDurations))
-    timerRef.current = setTimeout(async () => {
-      const finishedAt = new Date().toLocaleString('ko-KR')
-      const row = {
+    raceTimerRef.current = setTimeout(async () => {
+      const finishedAt = nowString();
+      const record = {
         raceNo,
         winnerId: picked.id,
         winnerName: picked.name,
         odds: picked.odds,
-        horses: horses.map((h) => ({ id: h.id, name: h.name, odds: h.odds })),
         finishedAt,
-      }
-      const nextHistory = [row, ...raceHistory].slice(0, 30)
-      const nextRaceNo = raceNo + 1
-      setWinner(picked)
-      setRaceHistory(nextHistory)
-      setRaceNo(nextRaceNo)
-      setLastUpdated(finishedAt)
-      setIsRacing(false)
-      await pushRoomState(
-        { raceNo: nextRaceNo, raceHistory: nextHistory, lastUpdated: finishedAt },
-        `${row.raceNo}경기 결과가 공유되었습니다`,
-      )
-    }, (longest + 0.3) * 1000)
-  }
+        horses: horses.map((h) => ({ id: h.id, name: h.name, odds: h.odds })),
+      };
+      const nextHistory = [record, ...raceHistory].slice(0, 30);
+      const nextRaceNo = raceNo + 1;
 
-  const resetRace = () => {
-    if (!isHost) return
-    if (timerRef.current) clearTimeout(timerRef.current)
-    setIsRacing(false)
-    setWinner(null)
-    setDurations({})
-    setNotice('현재 경기만 초기화했습니다')
-  }
+      setWinner(picked);
+      setRaceHistory(nextHistory);
+      setRaceNo(nextRaceNo);
+      setLastUpdated(finishedAt);
+      setRacing(false);
+      await saveRoomState(
+        {
+          raceNo: nextRaceNo,
+          raceHistory: nextHistory,
+          lastUpdated: finishedAt,
+        },
+        `${record.raceNo}경기 결과 저장 완료`
+      );
+    }, 2000);
+  };
 
-  const resetAll = async () => {
-    if (!isHost) return
-    if (timerRef.current) clearTimeout(timerRef.current)
-    const now = new Date().toLocaleString('ko-KR')
-    setWinner(null)
-    setDurations({})
-    setIsRacing(false)
-    setRaceNo(1)
-    setRaceHistory([])
-    setLastUpdated(now)
-    await pushRoomState({ raceNo: 1, raceHistory: [], lastUpdated: now }, '전체 기록 초기화 완료')
-  }
-
-  const updateHorse = async (id, key, value) => {
-    const next = horses.map((h) => (h.id === id ? { ...h, [key]: key === 'odds' ? Number(value || 0) : value } : h))
-    setHorses(next)
-    if (isHost && isRealtime) {
-      await pushRoomState({ horses: next, lastUpdated: new Date().toLocaleString('ko-KR') }, '말 설정 반영 완료')
-    }
-  }
-
-  const copyShareCode = async () => {
-    const text = makeSharePayload({ horses, raceNo, raceHistory, roomName, roomCode, lastUpdated })
-    setShareData(text)
-    try {
-      await navigator.clipboard.writeText(text)
-      setNotice('공유 코드가 복사되었습니다')
-    } catch {
-      setNotice('공유 코드를 직접 복사해주세요')
-    }
-  }
-
-  const importShareCode = async () => {
-    try {
-      const parsed = JSON.parse(shareData)
-      setHorses(parsed.horses || initialHorses)
-      setRaceNo(parsed.raceNo || 1)
-      setRaceHistory(parsed.raceHistory || [])
-      setRoomName(parsed.roomName || 'KANEDA 메인 룸')
-      setRoomCode(parsed.roomCode || 'main-room')
-      setLastUpdated(parsed.lastUpdated || new Date().toLocaleString('ko-KR'))
-      setNotice('공유 코드를 적용했습니다')
-    } catch {
-      setNotice('JSON 형식이 아닙니다')
-    }
-  }
-
-  const downloadShareFile = () => {
-    const text = makeSharePayload({ horses, raceNo, raceHistory, roomName, roomCode, lastUpdated })
-    const blob = new Blob([text], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `kaneda-race-${roomCode}-${raceNo - 1}.json`
-    a.click()
-    URL.revokeObjectURL(url)
-  }
+  const resetHistory = async () => {
+    if (!isAdmin) return;
+    const stamp = nowString();
+    setRaceNo(1);
+    setRaceHistory([]);
+    setWinner(null);
+    setRacing(false);
+    await saveRoomState(
+      { raceNo: 1, raceHistory: [], lastUpdated: stamp },
+      "경기 기록 초기화 완료"
+    );
+  };
 
   return (
-    <div className="page">
-      <div className="wrap">
-        <section className="hero card">
+    <div style={styles.page}>
+      <div style={styles.container}>
+        <div style={styles.hero}>
           <div>
-            <div className="eyebrow">KANEDA HORSE CLUB</div>
-            <h1>브라우저 경마 시뮬레이터</h1>
-            <p className="subtext">
-              운영자는 레이스를 시작하고, 관전자는 같은 룸 코드로 접속하면 같은 결과와 기록을 자동으로 봅니다.
+            <div style={styles.eyebrow}>KANEDA HORSE CLUB</div>
+            <h1 style={styles.title}>실시간 경마 사업 RP</h1>
+            <p style={styles.subtitle}>
+              같은 룸 코드에 접속한 사람끼리 말 정보, 회차, 경기 기록이 자동 동기화됩니다.
             </p>
           </div>
-          <div className="top-actions">
-            <button className="btn primary" onClick={startRace} disabled={!isHost || isRacing}>
-              <Play size={16} /> {isRacing ? '경기 진행 중' : '경기 시작'}
-            </button>
-            <button className="btn" onClick={resetRace} disabled={!isHost}> <RotateCcw size={16} /> 현재 경기 초기화</button>
-            <button className="btn danger" onClick={resetAll} disabled={!isHost}>전체 기록 초기화</button>
+          <div style={styles.badges}>
+            <span style={styles.badge}>룸: {roomCode}</span>
+            <span style={styles.badge}>{isAdmin ? "관리자" : "관전자"}</span>
+            <span style={styles.badge}>{isConnected ? "실시간 연결됨" : "연결 대기"}</span>
           </div>
-          <div className="badges">
-            <span className="badge">현재 경기 {raceNo}</span>
-            <span className="badge">룸 {roomName}</span>
-            <span className="badge">코드 {roomCode}</span>
-            <span className="badge icon-badge">{isRealtime ? <Wifi size={14} /> : <WifiOff size={14} />} {isRealtime ? '실시간' : '로컬'}</span>
-            <span className="badge icon-badge">{isHost ? <Crown size={14} /> : <Eye size={14} />} {isHost ? '운영자' : '관전자'}</span>
+        </div>
+
+        <div style={styles.noticeBox}>
+          <div>
+            <div style={styles.noticeLabel}>상태</div>
+            <div style={styles.noticeText}>{notice}</div>
           </div>
-          <div className="status-box">
-            <div>
-              <div className="muted">상태</div>
-              <strong>{notice}</strong>
+          <div style={{ textAlign: "right" }}>
+            <div style={styles.noticeLabel}>마지막 갱신</div>
+            <div style={styles.noticeText}>{lastUpdated || "없음"}</div>
+          </div>
+        </div>
+
+        <div style={styles.grid}>
+          <section style={styles.panel}>
+            <h2 style={styles.panelTitle}>운영</h2>
+
+            <div style={styles.field}>
+              <label style={styles.label}>룸 코드</label>
+              <input
+                style={styles.input}
+                value={roomCode}
+                onChange={(e) => setRoomCode(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
+                placeholder="main-room"
+              />
             </div>
-            <div className="status-right muted">
-              <div>마지막 갱신: {lastUpdated || '없음'}</div>
-              <div>연결 상태: {isRealtime ? (connected ? '연결됨' : '연결 대기') : '로컬'}{syncing ? ' / 저장 중' : ''}</div>
+
+            <div style={styles.field}>
+              <label style={styles.label}>룸 이름</label>
+              <input
+                style={styles.input}
+                value={roomName}
+                onChange={(e) => setRoomName(e.target.value)}
+                disabled={!isAdmin}
+              />
             </div>
+
+            <div style={styles.field}>
+              <label style={styles.label}>관리자 PIN</label>
+              <div style={styles.row}>
+                <input
+                  type="password"
+                  style={styles.input}
+                  value={pinInput}
+                  onChange={(e) => setPinInput(e.target.value)}
+                  placeholder="PIN 입력"
+                />
+                <button style={styles.primaryBtn} onClick={unlockAdmin}>
+                  관리자 인증
+                </button>
+                <button style={styles.secondaryBtn} onClick={switchViewer}>
+                  관전자
+                </button>
+              </div>
+            </div>
+
+            <div style={styles.row}>
+              <button style={styles.primaryBtn} disabled={!isAdmin || racing} onClick={startRace}>
+                {racing ? "경기 진행 중..." : "경기 시작"}
+              </button>
+              <button style={styles.secondaryBtn} disabled={!isAdmin} onClick={commitHorseSettings}>
+                설정 저장
+              </button>
+              <button style={styles.secondaryBtn} disabled={!isAdmin} onClick={resetHistory}>
+                기록 초기화
+              </button>
+            </div>
+
+            <div style={styles.help}>
+              기본 관리자 PIN은 <b>1479</b> 입니다. 원하면 <code>src/App.jsx</code>의
+              <code> ADMIN_PIN </code> 값을 바꾸면 됩니다.
+            </div>
+          </section>
+
+          <section style={styles.panel}>
+            <h2 style={styles.panelTitle}>배팅 계산기</h2>
+            <div style={styles.field}>
+              <label style={styles.label}>말 번호</label>
+              <input
+                style={styles.input}
+                type="number"
+                min="1"
+                max="6"
+                value={betHorseId}
+                onChange={(e) => setBetHorseId(Number(e.target.value))}
+              />
+            </div>
+            <div style={styles.field}>
+              <label style={styles.label}>배팅 금액</label>
+              <input
+                style={styles.input}
+                type="number"
+                min="0"
+                step="500"
+                value={betAmount}
+                onChange={(e) => setBetAmount(Number(e.target.value))}
+              />
+            </div>
+            <div style={styles.calcBox}>
+              <div>선택한 말: <b>{selectedHorse?.name}</b></div>
+              <div>현재 배당: <b>{selectedHorse?.odds?.toFixed(1)}배</b></div>
+              <div>예상 지급액: <b>{currency(payout)}</b></div>
+            </div>
+          </section>
+        </div>
+
+        <section style={styles.panel}>
+          <h2 style={styles.panelTitle}>말 설정</h2>
+          <div style={styles.horseGrid}>
+            {horses.map((horse) => (
+              <div key={horse.id} style={styles.horseCard}>
+                <div style={styles.horseTop}>
+                  <span style={styles.horseId}>#{horse.id}</span>
+                  {winner?.id === horse.id ? <span style={styles.winTag}>우승</span> : null}
+                </div>
+                <input
+                  style={styles.input}
+                  value={horse.name}
+                  disabled={!isAdmin}
+                  onChange={(e) => changeHorse(horse.id, "name", e.target.value)}
+                />
+                <input
+                  style={styles.input}
+                  type="number"
+                  min="1.1"
+                  step="0.1"
+                  value={horse.odds}
+                  disabled={!isAdmin}
+                  onChange={(e) => changeHorse(horse.id, "odds", e.target.value)}
+                />
+              </div>
+            ))}
           </div>
         </section>
 
-        <div className="grid-main">
-          <section className="card">
-            <h2>실시간 레이스 트랙</h2>
-            <div className="track-list">
-              {horses.map((horse) => (
-                <div key={horse.id} className="lane">
-                  <div className="lane-head">
-                    <div className="horse-meta">
-                      <span className="horse-id">#{horse.id}</span>
-                      <div>
-                        <div className="horse-name">{horse.name}</div>
-                        <div className="muted">배당 {horse.odds.toFixed(1)}배</div>
-                      </div>
-                    </div>
-                    {winner?.id === horse.id && <span className="badge icon-badge"><Trophy size={14} /> 우승</span>}
-                  </div>
-                  <div className="lane-track">
-                    <div className="finish">FINISH</div>
-                    <motion.div
-                      className="runner"
-                      animate={{ x: isRacing ? 'calc(100% - 84px)' : 0 }}
-                      transition={{ duration: durations[horse.id] || 0, ease: 'linear' }}
-                    >
-                      🐎
-                    </motion.div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="result-box">
-              {winner ? (
-                <div className="winner-line"><Trophy size={18} /> {raceNo - 1}경기 우승마: {winner.name} ({winner.odds.toFixed(1)}배)</div>
-              ) : isRacing ? (
-                <div>레이스 진행 중... 결승선 통과 대기</div>
-              ) : (
-                <div>배팅 마감 후 경기 시작 버튼을 눌러주세요.</div>
-              )}
-            </div>
-          </section>
-
-          <div className="side-col">
-            <section className="card">
-              <h2>배팅 계산기</h2>
-              <label>배팅 말 번호</label>
-              <input type="number" min="1" max="6" value={betHorseId} onChange={(e) => setBetHorseId(Number(e.target.value))} />
-              <label>배팅 금액</label>
-              <input type="number" min="0" step="500" value={betAmount} onChange={(e) => setBetAmount(Number(e.target.value))} />
-              <div className="summary-box">
-                <div><span className="muted">선택한 말</span><strong>{selectedHorse?.name || '-'}</strong></div>
-                <div><span className="muted">현재 배당</span><strong>{selectedHorse?.odds?.toFixed(1) || '0.0'}배</strong></div>
-                <div><span className="muted">예상 지급액</span><strong className="money"><Coins size={16} /> {toMoney(expectedPayout)}</strong></div>
-              </div>
-            </section>
-
-            <section className="card">
-              <h2>운영 설정</h2>
-              <div className="split-buttons">
-                <button className={`btn ${syncMode === 'local' ? 'primary' : ''}`} onClick={() => setSyncMode('local')}>로컬</button>
-                <button className={`btn ${syncMode === 'realtime' ? 'primary' : ''}`} onClick={() => setSyncMode('realtime')}>실시간</button>
-              </div>
-              <div className="split-buttons">
-                <button className={`btn ${role === 'host' ? 'primary' : ''}`} onClick={() => setRole('host')}>운영자</button>
-                <button className={`btn ${role === 'viewer' ? 'primary' : ''}`} onClick={() => setRole('viewer')}>관전자</button>
-              </div>
-              <label>룸 이름</label>
-              <input value={roomName} onChange={(e) => setRoomName(e.target.value)} />
-              <label>룸 코드</label>
-              <input value={roomCode} onChange={(e) => setRoomCode(e.target.value.toLowerCase().replace(/\s+/g, '-'))} />
-              <div className="tip-box">
-                같은 URL + 같은 룸 코드면 결과가 자동으로 통일됩니다.
-              </div>
-              <div className="horse-edit-list">
-                {horses.map((horse) => (
-                  <div key={horse.id} className="horse-edit-row">
-                    <span className="muted">#{horse.id}</span>
-                    <input value={horse.name} onChange={(e) => updateHorse(horse.id, 'name', e.target.value)} disabled={!isHost} />
-                    <input type="number" step="0.1" min="1.1" value={horse.odds} onChange={(e) => updateHorse(horse.id, 'odds', e.target.value)} disabled={!isHost} />
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <section className="card">
-              <h2><Users size={18} /> 공유용 기록 코드</h2>
-              <div className="button-row">
-                <button className="btn" onClick={copyShareCode}><Copy size={16} /> 기록 코드 생성</button>
-                <button className="btn" onClick={downloadShareFile}><Download size={16} /> 파일 저장</button>
-                <button className="btn" onClick={importShareCode}><Upload size={16} /> 코드 적용</button>
-              </div>
-              <textarea value={shareData} onChange={(e) => setShareData(e.target.value)} placeholder="공유 코드를 여기에 붙여넣으세요" />
-            </section>
-          </div>
-        </div>
-
-        <div className="grid-bottom">
-          <section className="card">
-            <h2>RP 진행 멘트 예시</h2>
-            <div className="rp-box">
-              {roomName} {raceNo}경기 접수 시작.<br />
-              1번 {horses[0].name} {horses[0].odds.toFixed(1)}배 / 2번 {horses[1].name} {horses[1].odds.toFixed(1)}배 / 3번 {horses[2].name} {horses[2].odds.toFixed(1)}배<br />
-              4번 {horses[3].name} {horses[3].odds.toFixed(1)}배 / 5번 {horses[4].name} {horses[4].odds.toFixed(1)}배 / 6번 {horses[5].name} {horses[5].odds.toFixed(1)}배<br />
-              배팅 마감 후 즉시 출주합니다.
-            </div>
-          </section>
-
-          <section className="card">
-            <h2><History size={18} /> 경기 기록</h2>
+        <section style={styles.panel}>
+          <h2 style={styles.panelTitle}>경기 기록</h2>
+          <div style={styles.historyWrap}>
             {raceHistory.length === 0 ? (
-              <div className="empty-box">아직 저장된 경기 기록이 없습니다.</div>
+              <div style={styles.empty}>아직 경기 기록이 없습니다.</div>
             ) : (
-              <div className="history-list">
-                {raceHistory.map((row) => (
-                  <div key={`${row.raceNo}-${row.finishedAt}`} className="history-item">
-                    <div className="history-top">
-                      <strong><Trophy size={16} /> {row.raceNo}경기 우승: {row.winnerName}</strong>
-                      <span className="muted">{row.finishedAt}</span>
-                    </div>
-                    <div className="muted">우승 배당 {Number(row.odds).toFixed(1)}배</div>
-                    <div className="chip-list">
-                      {row.horses.map((horse) => (
-                        <span key={`${row.raceNo}-${horse.id}`} className="badge">#{horse.id} {horse.name} {Number(horse.odds).toFixed(1)}배</span>
-                      ))}
-                    </div>
+              raceHistory.map((row) => (
+                <div key={`${row.raceNo}-${row.finishedAt}`} style={styles.record}>
+                  <div style={styles.recordTop}>
+                    <strong>{row.raceNo}경기 우승: {row.winnerName}</strong>
+                    <span>{row.finishedAt}</span>
                   </div>
-                ))}
-              </div>
+                  <div>배당 {Number(row.odds).toFixed(1)}배</div>
+                </div>
+              ))
             )}
-          </section>
-        </div>
+          </div>
+        </section>
       </div>
     </div>
-  )
+  );
 }
 
-export default App
+const styles = {
+  page: {
+    minHeight: "100vh",
+    background: "linear-gradient(180deg, #0f1115 0%, #151922 100%)",
+    color: "#f5f7fb",
+    fontFamily: "Arial, sans-serif",
+    padding: "24px",
+  },
+  container: {
+    maxWidth: "1100px",
+    margin: "0 auto",
+    display: "grid",
+    gap: "20px",
+  },
+  hero: {
+    background: "#1c2230",
+    border: "1px solid #2f394d",
+    borderRadius: "20px",
+    padding: "24px",
+    display: "flex",
+    gap: "16px",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+  },
+  eyebrow: {
+    color: "#f87171",
+    fontSize: "12px",
+    letterSpacing: "0.25em",
+    marginBottom: "8px",
+    fontWeight: 700,
+  },
+  title: {
+    margin: 0,
+    fontSize: "36px",
+  },
+  subtitle: {
+    margin: "10px 0 0",
+    color: "#c3cfdf",
+    lineHeight: 1.5,
+  },
+  badges: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "8px",
+    alignItems: "flex-start",
+  },
+  badge: {
+    border: "1px solid #394661",
+    padding: "8px 12px",
+    borderRadius: "999px",
+    fontSize: "13px",
+    background: "#131823",
+  },
+  noticeBox: {
+    background: "#1c2230",
+    border: "1px solid #2f394d",
+    borderRadius: "16px",
+    padding: "18px",
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "16px",
+    flexWrap: "wrap",
+  },
+  noticeLabel: {
+    color: "#8ea0ba",
+    fontSize: "12px",
+    marginBottom: "4px",
+  },
+  noticeText: {
+    fontWeight: 700,
+  },
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "1.2fr 0.8fr",
+    gap: "20px",
+  },
+  panel: {
+    background: "#1c2230",
+    border: "1px solid #2f394d",
+    borderRadius: "16px",
+    padding: "20px",
+  },
+  panelTitle: {
+    marginTop: 0,
+    marginBottom: "16px",
+  },
+  field: {
+    marginBottom: "14px",
+  },
+  label: {
+    display: "block",
+    fontSize: "13px",
+    color: "#9eb0c8",
+    marginBottom: "6px",
+  },
+  row: {
+    display: "flex",
+    gap: "10px",
+    flexWrap: "wrap",
+  },
+  input: {
+    width: "100%",
+    boxSizing: "border-box",
+    background: "#111621",
+    color: "#f5f7fb",
+    border: "1px solid #34405a",
+    borderRadius: "10px",
+    padding: "12px 14px",
+    outline: "none",
+  },
+  primaryBtn: {
+    background: "#dc2626",
+    color: "#fff",
+    border: "none",
+    borderRadius: "10px",
+    padding: "12px 14px",
+    cursor: "pointer",
+    fontWeight: 700,
+  },
+  secondaryBtn: {
+    background: "#2e3a52",
+    color: "#fff",
+    border: "none",
+    borderRadius: "10px",
+    padding: "12px 14px",
+    cursor: "pointer",
+    fontWeight: 700,
+  },
+  calcBox: {
+    background: "#111621",
+    border: "1px solid #34405a",
+    borderRadius: "12px",
+    padding: "16px",
+    display: "grid",
+    gap: "8px",
+  },
+  help: {
+    marginTop: "14px",
+    color: "#b8c5d8",
+    lineHeight: 1.6,
+    fontSize: "14px",
+  },
+  horseGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+    gap: "12px",
+  },
+  horseCard: {
+    background: "#111621",
+    border: "1px solid #34405a",
+    borderRadius: "14px",
+    padding: "14px",
+  },
+  horseTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    marginBottom: "10px",
+  },
+  horseId: {
+    fontWeight: 700,
+  },
+  winTag: {
+    background: "#dc2626",
+    borderRadius: "999px",
+    padding: "4px 8px",
+    fontSize: "12px",
+  },
+  historyWrap: {
+    display: "grid",
+    gap: "10px",
+  },
+  empty: {
+    color: "#9eb0c8",
+  },
+  record: {
+    background: "#111621",
+    border: "1px solid #34405a",
+    borderRadius: "12px",
+    padding: "14px",
+  },
+  recordTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "10px",
+    flexWrap: "wrap",
+    marginBottom: "6px",
+  },
+};
