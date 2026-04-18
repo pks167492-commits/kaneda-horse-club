@@ -1,0 +1,92 @@
+:root {
+  color-scheme: dark;
+  --bg: #090909;
+  --panel: #141414;
+  --panel-2: #1a1a1a;
+  --border: #2d2d2d;
+  --text: #f5f5f5;
+  --muted: #a3a3a3;
+  --accent: #b91c1c;
+  --accent-2: #7f1d1d;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: linear-gradient(180deg, #050505 0%, #0c0c0c 100%);
+  color: var(--text);
+}
+button, input, textarea { font: inherit; }
+.page { min-height: 100vh; padding: 24px; }
+.wrap { max-width: 1400px; margin: 0 auto; display: grid; gap: 24px; }
+.card {
+  background: rgba(20,20,20,.95);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: 0 10px 40px rgba(0,0,0,.25);
+}
+.hero {
+  background: radial-gradient(circle at top right, rgba(185,28,28,.2), transparent 35%), linear-gradient(135deg, #0d0d0d, #161616 55%, #230909);
+}
+.eyebrow { font-size: 12px; letter-spacing: .35em; color: #f87171; margin-bottom: 12px; }
+h1 { font-size: clamp(32px, 5vw, 54px); margin: 0 0 10px; }
+h2 { display: flex; align-items: center; gap: 8px; margin-top: 0; font-size: 24px; }
+.subtext, .muted { color: var(--muted); }
+.top-actions, .button-row, .split-buttons, .badges { display: flex; gap: 10px; flex-wrap: wrap; }
+.status-box {
+  margin-top: 16px; border: 1px solid var(--border); border-radius: 18px; padding: 16px;
+  background: rgba(0,0,0,.25); display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+}
+.status-right { text-align: right; }
+.btn {
+  border: 1px solid var(--border); background: #1b1b1b; color: var(--text); padding: 12px 16px; border-radius: 16px;
+  display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+}
+.btn:hover { filter: brightness(1.08); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn.primary { background: linear-gradient(180deg, #dc2626, #991b1b); border-color: #7f1d1d; }
+.btn.danger { background: linear-gradient(180deg, #7f1d1d, #450a0a); border-color: #7f1d1d; }
+.badge {
+  display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 999px;
+  border: 1px solid var(--border); background: #161616; font-size: 14px;
+}
+.icon-badge svg { opacity: .9; }
+.grid-main { display: grid; grid-template-columns: 1.45fr .95fr; gap: 24px; }
+.side-col, .track-list, .history-list, .horse-edit-list { display: grid; gap: 16px; }
+.lane { border: 1px solid var(--border); border-radius: 18px; padding: 16px; background: var(--panel-2); overflow: hidden; }
+.lane-head { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 12px; align-items: center; }
+.horse-meta { display: flex; gap: 12px; align-items: center; }
+.horse-id {
+  width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; background: #2a0d0d; border: 1px solid #5f1616;
+}
+.horse-name { font-size: 18px; font-weight: 700; }
+.lane-track { position: relative; height: 44px; border-radius: 14px; background: #0d0d0d; border: 1px solid var(--border); overflow: hidden; }
+.finish {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%); font-size: 12px; color: #fca5a5; font-weight: 700;
+}
+.runner { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); font-size: 28px; }
+.result-box, .summary-box, .tip-box, .rp-box, .empty-box {
+  border: 1px solid var(--border); border-radius: 18px; padding: 16px; background: #111;
+}
+.winner-line { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+label { display: block; margin-bottom: 8px; color: var(--muted); }
+input, textarea {
+  width: 100%; background: #101010; color: var(--text); border: 1px solid var(--border); border-radius: 16px; padding: 12px 14px; margin-bottom: 14px;
+}
+textarea { min-height: 180px; resize: vertical; }
+.summary-box > div, .history-top {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px;
+}
+.summary-box > div:last-child { margin-bottom: 0; }
+.money { display: inline-flex; gap: 8px; align-items: center; }
+.horse-edit-row { display: grid; grid-template-columns: 52px 1fr 110px; gap: 10px; align-items: center; }
+.grid-bottom { display: grid; grid-template-columns: .95fr 1.05fr; gap: 24px; }
+.history-item {
+  border: 1px solid var(--border); border-radius: 18px; padding: 16px; background: #101010; display: grid; gap: 10px;
+}
+.chip-list { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 980px) {
+  .grid-main, .grid-bottom { grid-template-columns: 1fr; }
+  .status-right { text-align: left; }
+}
